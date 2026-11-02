@@ -1,2 +1,78 @@
-TEC-017	1	Sprint 1	BELCMW-53	BELCMW-3 Validación de procesos	Spike: tabla de bitácora común para BELP y BELC	Arquitectura	Arquitectura	Ximena Williams	Responder el spike BELCMW-53: si BELP y BELC usan una o dos tablas de bitácora.	"Incluye: Recomendación con justificación, ADR-001 y DDL de auditoria.
-No incluye: Implementación de la librería (TEC-002)."	Ver Componentes impactados.	auditoria	—	Requiere validación de Seguridad y Auditoría.	Recomendación: una tabla común (ADR-001, decisión 5). Falta validación de Seguridad y Auditoría.	En curso	Validación de Seguridad y Auditoría
+TEC-117 · Contratos OpenAPI v1 y mocks de los servicios BELC (R1)
+
+Campos: Tipo Historia · Épica Habilitadores técnicos · Célula BE · Responsable Domingo Camargo · Sprint actual
+Enlaces (relates to): TEC-003, TEC-005, TEC-007, TEC-013, TEC-020, TEC-030, TEC-050, TEC-070, TEC-080, TEC-105
+
+Descripción
+
+1. Objetivo técnico
+Que Web y App construyan sus pantallas contra mocks desde el Sprint 1, sin esperar al backend, y que BE y BO implementen exactamente lo acordado en los contratos.
+
+2. Alcance
+Incluye 9 contratos OpenAPI 3.0.3 (YAML), con 32 servicios en total. Cada servicio corresponde a una historia de la PO o a una tarea técnica del backlog (ver "Mapa de servicios" en la Guía de diseño de APIs BELC v1):
+- sesion-contexto: consultar y cambiar contexto o grupo económico (BELCMW-7, 44, 45, 48)
+- afiliacion: validar invitación y vincular persona (BELCMW-1, 4, 46)
+- catalogos: catálogos y permisos por perfil (BELCMW-21, 22, 23)
+- usuarios: listar, buscar, crear, detalle, editar, inactivar (BELCMW-9 a 16)
+- roles: listar, buscar, crear, detalle, editar, eliminar (BELCMW-18 a 26)
+- grupos-productos: listar, buscar, crear, detalle, modificar, eliminar (BELCMW-28 a 33)
+- productos: consolidado de productos (BELCMW-47)
+- flujos-aprobacion: listar, buscar, crear, niveles, detalle, editar, eliminar (BELCMW-35 a 42)
+- backoffice: crear grupo económico, buscar y vincular empresas, invitar primer administrador (TEC-007, 008, 009, 019)
+Ejemplos de respuesta basados en el caso de autogestión de la PO (3 empresas, 4 roles, 7 usuarios).
+Incluye: mock server publicado con esos contratos.
+No incluye: implementación de los servicios (cada servicio tiene su tarea).
+No incluye: bandeja de aprobaciones administrativas ni frecuentes (contrato aparte).
+
+3. Diseño / arquitectura
+Reglas comunes (detalle en la Guía de diseño de APIs BELC v1):
+- Rutas en español, iguales a las del backlog, con el grupo económico en la ruta: /v1/grupos-economicos/{id}/...
+- Campos JSON en español camelCase, tomados de la columna "Columna anterior" del diccionario (id_rol → idRol).
+- Encabezados: Authorization (token ForgeRock) y X-Correlation-Id. La persona sale del token, nunca del cuerpo ni de la ruta.
+- Errores RFC 7807 con codigo, idCorrelacion y errores[]; catálogo de códigos en la guía.
+- Listas con pagina, tamano y texto; respuesta con elementos y totalElementos.
+- Crear, editar, eliminar o inactivar en usuarios, roles y grupos de productos responde 202 con idAprobacion (ADR-004). Flujos de aprobación responden 200 o 201.
+- Edición con control de versión: 409 VERSION_DESACTUALIZADA.
+- Cuentas y documentos enmascarados.
+Componentes comunes: belc-api-comun.yaml (se referencian con $ref, no se copian).
+Fuente de campos: belc_ddl_v4.sql (v4.2) y Diccionario_nombres_BELC_v4_solo_belc.xlsx.
+
+4. Componentes impactados
+Microservicios BELC · BackOffice BELC · Web comercial · App comercial · API Gateway (TEC-013)
+
+5. Dependencias
+Ninguna para iniciar (se trabaja con el DDL v4.2).
+Pendientes que ajustan partes del contrato: BELCMW-38 (PO), login de BackOffice (TEC-011), token del administrador (TEC-024 / D6), permisos de administración (D13), repositorio de contratos (BE y DevSecOps).
+
+6. Restricciones
+- Ningún servicio devuelve datos de un grupo económico al que la persona no pertenece (403).
+- Ningún contrato expone el id de persona de otros usuarios ni números de cuenta completos.
+- No se agregan ni quitan servicios del mapa sin aprobación de Arquitectura.
+- Una vez congelados en v1, quitar, renombrar o volver obligatorio un campo requiere aprobación de Arquitectura y fecha acordada con Web y App.
+
+7. Criterios de aceptación técnicos
+1. Los 9 contratos validan sin errores en un validador OpenAPI 3.
+2. Los 9 usan belc-api-comun.yaml para encabezados, errores, paginación y respuesta 202.
+3. Cada servicio tiene ejemplo de respuesta exitosa y de al menos un error.
+4. Cada servicio del mapa está en su contrato, con la misma ruta y método del backlog.
+5. El mock server responde los ejemplos y Web y App lo consumen.
+6. Revisión en sesión con Web, App, BE y BO (1 hora), con ajustes aplicados.
+7. Aprobados por Arquitectura (Ximena Williams) y congelados como v1.
+
+Plan: día 1 sesion-contexto y reglas (revisión de Arquitectura) · días 2-3 resto de contratos y mock · día 4 sesión de revisión · día 5 aprobación y congelamiento v1.
+
+Adjuntos: Guía de diseño de APIs BELC v1 (link o PDF), belc-api-comun.yaml, belc_ddl_v4.sql, Diccionario_nombres_BELC_v4_solo_belc.xlsx, ejemplo_PO_autogestion_v4.sql
+
+Subtareas
+
+Subtarea	Responsable
+Reglas comunes + contrato sesion-contexto	Domingo Camargo
+Contrato afiliacion	David Ríos
+Contratos catalogos y roles	Edwin Lima
+Contratos usuarios y productos	Raúl Rojas
+Contrato grupos-productos	Benjamín Rodríguez
+Contrato flujos-aprobacion	David Ríos
+Contrato backoffice	Héctor Durán con Jonathan Vargas (BO)
+Mock server publicado	Benjamín Rodríguez
+
+Para el link de la guía usa el botón de compartir del documento. Si la adjuntas como PDF, expórtala después de cualquier cambio que le hagas mañana.
