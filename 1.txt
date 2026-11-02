@@ -83,3 +83,60 @@ Contrato flujos-aprobacion	David Ríos
 Contrato backoffice	Héctor Durán con Jonathan Vargas (BO)
 Mock server publicado	Benjamín Rodríguez
 Validación automática en el pipeline	Domingo Camargo con DevSecOps (Eric)
+
+
+
+
+//////////////////////
+TEC-117 · Revisar, completar y aprobar los contratos OpenAPI v0.9 y el mock BELC (R1)
+
+Descripción
+
+1. Objetivo técnico
+Congelar en 3 días los contratos de los servicios BELC para que Web y App trabajen contra el mock desde el día 1 y BE y BO implementen exactamente lo acordado.
+
+2. Alcance
+Arquitectura entrega 10 contratos OpenAPI 3.0.3 en borrador v0.9 con 35 operaciones (método + ruta), validados: 196 ejemplos conformes a su esquema y mock con las 35 operaciones funcionando.
+Cada responsable revisa su contrato contra la historia de la PO y el diseño de UX, resuelve sus pendientes (x-todo) y lo aprueba.
+Incluye: publicar el mock completo en un ambiente compartido para Web y App.
+No incluye: implementación de los servicios, bandeja de aprobaciones ni frecuentes.
+
+3. Diseño / arquitectura
+Reglas: Guía de diseño de APIs BELC v1 (rutas en español iguales al backlog, seguridad en tres casos, errores RFC 9457, 202 con seguimiento, control de versión).
+Cada operación trae x-historias (BELCMW), x-tarea (TEC) y, si falta algo, x-todo.
+Mock: belc-mock-completo.yaml (generado, no se edita). Escenarios con Prefer: example=<nombre> o Prefer: code=<http>.
+
+4. Componentes impactados
+Microservicios BELC · BackOffice BELC · Web comercial · App comercial · API Gateway (TEC-013) · pipeline de validación
+
+5. Dependencias
+Ninguna para iniciar. Los pendientes que dependen de PO, ForgeRock (Gustavo), COBIS (TEC-012), login de BackOffice (TEC-011) o Seguridad están listados en PENDIENTES_por_contrato.md.
+
+6. Restricciones
+- No se agregan ni quitan operaciones sin aprobación de Arquitectura.
+- Un campo nuevo sale del DDL o de la historia; un código de error nuevo se agrega primero en belc-api-comun.yaml.
+- Se edita el contrato del dominio, nunca belc-mock-completo.yaml.
+- El mock no prueba la seguridad real: se prueba en la implementación de cada servicio.
+
+7. Criterios de aceptación técnicos
+1. Cada contrato revisado contra su historia PO y el diseño de UX, con diferencias anotadas en su subtarea.
+2. Pendientes (x-todo) resueltos o escalados con fecha.
+3. Validación automática en el pipeline sin errores (OpenAPI 3.0.3, $ref, ejemplos contra esquema).
+4. Mock completo publicado en ambiente compartido y consumido por Web y App.
+5. Aceptación por contrato de Web, App, BE y BO (comentario en cada subtarea).
+6. Aprobados por Arquitectura (Ximena Williams): se congelan como v1 los contratos sin pendientes.
+
+Plan: día 1 mock publicado y revisión individual · día 2 resolver pendientes · día 3 sesión de 1 hora y congelamiento.
+
+Adjuntos: contratos_belc_v0.9.zip, Guía de diseño de APIs BELC v1 (link o PDF), belc_ddl_v4.sql, diccionario, ejemplo_PO_autogestion_v4.sql
+
+Subtareas: “Revisar, completar y aprobar…”
+
+Subtarea	Responsable	Pendientes
+sesion-contexto + aprobaciones	Domingo Camargo	4
+afiliacion + flujos-aprobacion	David Ríos	9
+catalogos + roles	Edwin Lima	4
+usuarios + productos	Raúl Rojas	6
+grupos-productos	Benjamín Rodríguez	3
+backoffice	Héctor Durán con Jonathan Vargas	8
+Publicar mock compartido + validación en pipeline	Benjamín Rodríguez con Eric	—
