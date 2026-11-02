@@ -1,0 +1,49 @@
+TEC-115 · Liquibase: datos iniciales de catálogos (matriz de la PO) en la BD de BackOffice
+
+Campos: Tipo DevOps / BD · Célula BO · Responsable Oliver Aparicio / Alfredo Pinzón · Épica Habilitadores técnicos · Sprint 1 · Depende de TEC-001
+
+Descripción
+
+1. Objetivo técnico
+Que todos los ambientes (DEV, QA, PROD y contingencia) tengan los mismos catálogos de banca comercial: perfiles, permisos, tipos de transacción, productos, documentos y monedas, según la matriz de permisos de la PO.
+
+2. Alcance
+Incluye: belc_datos_iniciales_v4.sql (v4.2) como un changeset de datos de Liquibase, separado del DDL.
+- 51 permisos, 4 perfiles y su matriz de permisos (123 filas)
+- 7 tipos de transacción, 5 tipos de producto, 3 tipos de documento
+- 2 monedas (USD activa, EUR inactiva), 2 tipos de visualización, 4 tipos de cambio administrativo
+No incluye: datos de clientes ni el ejemplo de la PO (ese es solo para pruebas).
+
+3. Diseño / arquitectura
+Repositorio: gb-belp-mgmt-aurora-data, rama development
+https://bitbucket.org/globalbankcorporation/gb-belp-mgmt-aurora-data/src/development/
+Changeset de datos: belc_datos_iniciales_v4.sql, después del changeset del DDL (TEC-001).
+Escribe en: belpc_profile, belpc_permission, belpc_profile_permission, belpc_transaction_type, belpc_product_type, belpc_document_type, belpc_currency, belpc_display_type, belpc_admin_change_type.
+
+4. Componentes impactados
+Aurora MySQL (BD de BackOffice) · Liquibase · pipeline de despliegue de BD
+
+5. Dependencias
+TEC-001 (estructura belpc_ creada en el mismo ambiente).
+
+6. Restricciones
+- Inserta por código, sin ids fijos.
+- No se ejecuta a mano: solo por Liquibase.
+- No toca tablas de banca personal (BELP).
+- Si cambia un catálogo, se agrega un changeset nuevo; no se edita el ya ejecutado.
+- Pendiente validar con COBIS los códigos de producto y de transacción; el tipo de producto PRE (Préstamo) no aparece en el taller de la PO.
+
+7. Criterios de aceptación técnicos
+1. Conteos: 51 permisos; Creador 21, Aprobador 23, Ejecutor 28 y Administrador 51 permisos.
+2. Los catálogos coinciden con la matriz de permisos de la PO.
+3. El changeset queda registrado en DATABASECHANGELOG y Liquibase no lo vuelve a ejecutar en los siguientes despliegues.
+4. Mismos conteos en DEV, QA, PROD y contingencia.
+5. Revisado y aprobado por la DBA (Ximena Williams) antes de promover a QA.
+
+Adjunto: belc_datos_iniciales_v4.sql
+
+Para revisar el criterio 1, el responsable puede correr esta consulta en cada ambiente:
+
+sql
+SELECT p.code, COUNT(*) FROM belpc_profile_permission pp
+JOIN belpc_profile p USING (profile_id) GROUP BY p.code;
