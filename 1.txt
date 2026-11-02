@@ -1,72 +1,80 @@
 TEC-117 · Contratos OpenAPI v1 y mocks de los servicios BELC (R1)
 
-Campos: Tipo Historia · Épica Habilitadores técnicos · Célula BE · Responsable Domingo Camargo · Sprint actual
-Enlaces (relates to): TEC-003, TEC-005, TEC-007, TEC-013, TEC-020, TEC-030, TEC-050, TEC-070, TEC-080, TEC-105
+Campos: Historia · Épica Habilitadores técnicos · Célula BE · Responsable Domingo Camargo · Sprint actual
+Enlaces: blocks TEC-005, TEC-020, TEC-030, TEC-050, TEC-070, TEC-080, TEC-105, TEC-112 (no se implementan sin contrato aprobado) · relates to TEC-003, TEC-007, TEC-011, TEC-013, TEC-024
 
 Descripción
 
 1. Objetivo técnico
-Que Web y App construyan sus pantallas contra mocks desde el Sprint 1, sin esperar al backend, y que BE y BO implementen exactamente lo acordado en los contratos.
+Que Web y App construyan sus pantallas contra mocks desde el Sprint 1, sin esperar al backend, y que BE y BO implementen exactamente lo acordado en contratos verificables.
 
 2. Alcance
-Incluye 9 contratos OpenAPI 3.0.3 (YAML), con 32 servicios en total. Cada servicio corresponde a una historia de la PO o a una tarea técnica del backlog (ver "Mapa de servicios" en la Guía de diseño de APIs BELC v1):
-- sesion-contexto: consultar y cambiar contexto o grupo económico (BELCMW-7, 44, 45, 48)
-- afiliacion: validar invitación y vincular persona (BELCMW-1, 4, 46)
-- catalogos: catálogos y permisos por perfil (BELCMW-21, 22, 23)
-- usuarios: listar, buscar, crear, detalle, editar, inactivar (BELCMW-9 a 16)
-- roles: listar, buscar, crear, detalle, editar, eliminar (BELCMW-18 a 26)
-- grupos-productos: listar, buscar, crear, detalle, modificar, eliminar (BELCMW-28 a 33)
-- productos: consolidado de productos (BELCMW-47)
-- flujos-aprobacion: listar, buscar, crear, niveles, detalle, editar, eliminar (BELCMW-35 a 42)
-- backoffice: crear grupo económico, buscar y vincular empresas, invitar primer administrador (TEC-007, 008, 009, 019)
-Ejemplos de respuesta basados en el caso de autogestión de la PO (3 empresas, 4 roles, 7 usuarios).
-Incluye: mock server publicado con esos contratos.
-No incluye: implementación de los servicios (cada servicio tiene su tarea).
-No incluye: bandeja de aprobaciones administrativas ni frecuentes (contrato aparte).
+Incluye 10 contratos OpenAPI 3.0.3 (YAML) con 35 operaciones (método + ruta). La matriz de trazabilidad operación → historia PO → tarea está en la Guía de diseño de APIs BELC v1, sección "Mapa de servicios":
+- sesion-contexto (2): consultar y cambiar contexto o grupo (BELCMW-7, 44, 45, 48)
+- afiliacion (2): validar invitación y vincular persona (BELCMW-1, 4, 46)
+- catalogos (2): catálogos y permisos por perfil (BELCMW-21, 22, 23)
+- usuarios (5): listar, crear, detalle, editar, inactivar (BELCMW-9 a 16)
+- roles (5): listar, crear, detalle, editar, eliminar (BELCMW-18 a 26)
+- grupos-productos (5): listar, crear, detalle, modificar, eliminar (BELCMW-28 a 33)
+- productos (1): consolidado de productos (BELCMW-47)
+- aprobaciones (1): seguimiento de cambios enviados con 202 (TEC-112)
+- flujos-aprobacion (6): listar, crear, niveles, detalle, editar, eliminar (BELCMW-35 a 42)
+- backoffice (6): crear grupo, buscar y vincular empresas, consultar y vincular productos, invitar primer administrador (TEC-007, 008, 009, 019)
+Incluye: mock server con escenarios de éxito y de error por operación.
+No incluye: implementación de los servicios (cada uno tiene su tarea), bandeja de aprobaciones ni frecuentes.
 
 3. Diseño / arquitectura
-Reglas comunes (detalle en la Guía de diseño de APIs BELC v1):
-- Rutas en español, iguales a las del backlog, con el grupo económico en la ruta: /v1/grupos-economicos/{id}/...
-- Campos JSON en español camelCase, tomados de la columna "Columna anterior" del diccionario (id_rol → idRol).
-- Encabezados: Authorization (token ForgeRock) y X-Correlation-Id. La persona sale del token, nunca del cuerpo ni de la ruta.
-- Errores RFC 7807 con codigo, idCorrelacion y errores[]; catálogo de códigos en la guía.
-- Listas con pagina, tamano y texto; respuesta con elementos y totalElementos.
-- Crear, editar, eliminar o inactivar en usuarios, roles y grupos de productos responde 202 con idAprobacion (ADR-004). Flujos de aprobación responden 200 o 201.
+Reglas comunes (detalle en la guía):
+- Rutas en español iguales al backlog, con el grupo en la ruta: /v1/grupos-economicos/{id}/...
+- Campos JSON en español camelCase, desde la columna "Columna anterior" del diccionario.
+- Seguridad declarada con securitySchemes/security, tres casos:
+  · Cliente con sesión: token ForgeRock; se valida pertenencia al grupo y permiso del rol.
+  · Invitado antes de registrarse: token de invitación, validado contra la afiliación y su vencimiento.
+  · Empleado del banco: token de BackOffice; se valida permiso administrativo, no pertenencia al grupo.
+- Errores RFC 9457 con extensiones codigo, idCorrelacion y errores[]; catálogo de códigos en la guía.
+- Cambios en usuarios, roles y grupos de productos: 202 con idAprobacion, estado PENDIENTE y Location al seguimiento. Estados: PENDIENTE, APROBADA, APLICADA, RECHAZADA, EXPIRADA, CANCELADA, FALLIDA. Solicitud repetida: 409 APROBACION_PENDIENTE. El canal muestra "pendiente de aprobación" hasta APLICADA (ADR-004).
 - Edición con control de versión: 409 VERSION_DESACTUALIZADA.
-- Cuentas y documentos enmascarados.
-Componentes comunes: belc-api-comun.yaml (se referencian con $ref, no se copian).
-Fuente de campos: belc_ddl_v4.sql (v4.2) y Diccionario_nombres_BELC_v4_solo_belc.xlsx.
+- Listas con pagina, tamano y texto. Cuentas y documentos enmascarados.
+Componentes comunes: belc-api-comun.yaml v1.1.0 (se referencian con $ref).
+Mock: URL por ambiente accesible desde Web y App; escenario con el encabezado Prefer: example=<nombre>; datos sintéticos del ejemplo de la PO.
+Fuente de campos: belc_ddl_v4.sql (v4.2) y diccionario.
 
 4. Componentes impactados
-Microservicios BELC · BackOffice BELC · Web comercial · App comercial · API Gateway (TEC-013)
+Microservicios BELC · BackOffice BELC · Web comercial · App comercial · API Gateway (TEC-013) · pipeline de validación de contratos
 
 5. Dependencias
 Ninguna para iniciar (se trabaja con el DDL v4.2).
-Pendientes que ajustan partes del contrato: BELCMW-38 (PO), login de BackOffice (TEC-011), token del administrador (TEC-024 / D6), permisos de administración (D13), repositorio de contratos (BE y DevSecOps).
+Decisiones que condicionan el congelamiento de algunos contratos:
+- BELCMW-38, por confirmar con la PO → flujos-aprobacion
+- Login de BackOffice (TEC-011) → backoffice
+- Token del administrador (TEC-024 / D6) → usuarios y roles
+- Permisos de administración (D13) → usuarios y roles
+- Repositorio de contratos (BE y DevSecOps) → todos
 
 6. Restricciones
-- Ningún servicio devuelve datos de un grupo económico al que la persona no pertenece (403).
+- Ningún servicio devuelve datos de un grupo al que el cliente no pertenece (403).
 - Ningún contrato expone el id de persona de otros usuarios ni números de cuenta completos.
-- No se agregan ni quitan servicios del mapa sin aprobación de Arquitectura.
-- Una vez congelados en v1, quitar, renombrar o volver obligatorio un campo requiere aprobación de Arquitectura y fecha acordada con Web y App.
+- No se agregan ni quitan operaciones de la matriz sin aprobación de Arquitectura.
+- Un mock que responde 401/403 no prueba la autorización: esa prueba queda en la tarea de implementación de cada servicio.
+- Después de congelar: quitar, renombrar o volver obligatorio un campo requiere aprobación de Arquitectura y fecha acordada con Web y App.
 
 7. Criterios de aceptación técnicos
-1. Los 9 contratos validan sin errores en un validador OpenAPI 3.
-2. Los 9 usan belc-api-comun.yaml para encabezados, errores, paginación y respuesta 202.
-3. Cada servicio tiene ejemplo de respuesta exitosa y de al menos un error.
-4. Cada servicio del mapa está en su contrato, con la misma ruta y método del backlog.
-5. El mock server responde los ejemplos y Web y App lo consumen.
-6. Revisión en sesión con Web, App, BE y BO (1 hora), con ajustes aplicados.
-7. Aprobados por Arquitectura (Ximena Williams) y congelados como v1.
+1. Validación automática en el pipeline: los 10 contratos son OpenAPI 3.0.3 válido, todos los $ref resuelven y cada ejemplo cumple su esquema.
+2. Las 35 operaciones de la matriz están en su contrato, con la misma ruta y método del backlog.
+3. Cada operación tiene ejemplo exitoso y un ejemplo por cada error que le aplica, seleccionables en el mock.
+4. Cada contrato y belc-api-comun.yaml tienen versión en info.version y etiqueta en el repositorio.
+5. El mock está publicado y Web y App lo consumen.
+6. Registro de aceptación por contrato de Web, App, BE y BO (comentario de aprobación en cada subtarea).
+7. Aprobados por Arquitectura (Ximena Williams). Se congelan como v1 los contratos sin decisiones abiertas; los demás quedan en borrador hasta resolverse.
 
-Plan: día 1 sesion-contexto y reglas (revisión de Arquitectura) · días 2-3 resto de contratos y mock · día 4 sesión de revisión · día 5 aprobación y congelamiento v1.
+Plan: día 1 reglas + sesion-contexto (revisión de Arquitectura) · días 2-3 resto de borradores y mock · día 4 revisión previa de las células y sesión de 1 hora para cerrar observaciones · día 5 aprobación y congelamiento por contrato.
 
-Adjuntos: Guía de diseño de APIs BELC v1 (link o PDF), belc-api-comun.yaml, belc_ddl_v4.sql, Diccionario_nombres_BELC_v4_solo_belc.xlsx, ejemplo_PO_autogestion_v4.sql
+Adjuntos: Guía de diseño de APIs BELC v1 (link o PDF), belc-api-comun.yaml v1.1.0, belc_ddl_v4.sql, Diccionario_nombres_BELC_v4_solo_belc.xlsx, ejemplo_PO_autogestion_v4.sql
 
 Subtareas
 
 Subtarea	Responsable
-Reglas comunes + contrato sesion-contexto	Domingo Camargo
+Reglas comunes + contratos sesion-contexto y aprobaciones	Domingo Camargo
 Contrato afiliacion	David Ríos
 Contratos catalogos y roles	Edwin Lima
 Contratos usuarios y productos	Raúl Rojas
@@ -74,5 +82,4 @@ Contrato grupos-productos	Benjamín Rodríguez
 Contrato flujos-aprobacion	David Ríos
 Contrato backoffice	Héctor Durán con Jonathan Vargas (BO)
 Mock server publicado	Benjamín Rodríguez
-
-Para el link de la guía usa el botón de compartir del documento. Si la adjuntas como PDF, expórtala después de cualquier cambio que le hagas mañana.
+Validación automática en el pipeline	Domingo Camargo con DevSecOps (Eric)
