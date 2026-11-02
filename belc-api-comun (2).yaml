@@ -8,7 +8,7 @@ info:
       Ejemplo: $ref: './belc-api-comun.yaml#/components/parameters/IdGrupoEconomico'
     Rutas y campos en español (iguales al backlog); campos del estándar RFC 9457 en inglés.
     Reglas completas: "Guía de diseño de APIs BELC v1" (Arquitectura).
-    Dueña: Arquitectura de Solución / DBA BELC (Ximena Williams).
+    Dueña: Arquitectura de Solución Ximena Williams.
 security:
   - forgerockBearer: []
 paths: {}
