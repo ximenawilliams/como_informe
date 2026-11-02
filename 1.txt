@@ -1,3 +1,43 @@
+Armo el catálogo de errores completo con estas cuatro partes:
+- Errores de negocio del API.
+- Errores de ForgeRock en el inicio de sesión.
+- Errores HTTP genéricos del gateway.
+- Mensajes de validación de campos.
+
+Lo dejo en tres lugares: en el contrato común, en un archivo que Web y App puedan cargar, y como una pestaña nueva de la guía.
+
+Ahora ajusto el generador de contratos: cada error de campo lleva su `regla`, y las operaciones que dependen de COBIS o ForgeRock declaran el 503.
+
+Contratos validados: 202 ejemplos, 0 errores. Ahora el catálogo de mensajes para Web y App.
+
+Catálogo cuadrado con el contrato: 19 códigos del API, 11 de ForgeRock, 11 HTTP y 6 reglas de validación. Ahora lo agrego a la guía como pestaña.
+
+Te dejé el catálogo de errores en tres lugares:
+
+- **Contrato común `belc-api-comun.yaml` (v1.3.0).** Agregué dos códigos: `DEMASIADAS_SOLICITUDES` (429, límite del gateway) y `SERVICIO_NO_DISPONIBLE` (503, cuando COBIS o ForgeRock no responden). Además, cada error de campo trae ahora una `regla` (`OBLIGATORIO`, `FORMATO_INVALIDO`, `RANGO_INVALIDO`…) para que la pantalla arme el mensaje sin inventarlo. Los 10 contratos se regeneraron y pasan la validación: 202 ejemplos, 0 errores (`contratos_belc_v0.9.1.zip`).
+- **`belc-catalogo-errores.json`**, el archivo que cargan Web y App. Tiene:
+  - **19 errores de negocio** con su HTTP, cuándo ocurre, mensaje al usuario, qué hace la pantalla e historia de la PO.
+  - **11 resultados de ForgeRock**: credenciales, bloqueo, OTP, invitación vencida, sesión vencida…
+  - **11 respuestas HTTP del gateway**: 0, 4xx y 5xx.
+  - **6 mensajes de validación de campos.**
+- **Pestaña "Catálogo de errores" en la guía**, con las mismas cuatro tablas más los pendientes.
+
+**Lo que sigue abierto**
+- **ForgeRock:** los códigos de cómo llega cada resultado están marcados "por confirmar". Dependen de cómo Gustavo configure los journeys, así que no los inventé. Solo la sesión vencida y la falta de alcance siguen el estándar OAuth.
+- **Los textos son una propuesta**, escritos de "usted". La PO y Diana los validan.
+
+**¿Es buena parte de tu arquitectura entregarlo?** Sí, y es de las más importantes. El catálogo de errores es una regla transversal: si cada célula lo inventa, terminas con cuatro formas distintas de decir "sesión vencida" y con soporte sin poder rastrear nada. Le toca al arquitecto por tres razones:
+
+1. **Seguridad.** Decide que el login nunca diga si el usuario existe, que un 404 no revele datos de otro grupo y que un 500 no muestre detalles técnicos.
+2. **Soporte.** Todo error lleva su `idCorrelacion`, y con eso se rastrea en la bitácora.
+3. **Consistencia.** Web, App y BE usan los mismos códigos.
+
+El límite está en los textos: tú defines el código, el HTTP y el comportamiento; la PO y UX deciden las palabras. Así lo dejé escrito en la pestaña, en "Quién decide qué". Defines la regla sin cargar con la redacción.
+
+
+
+
+*//////
 TEC-117 · Contratos OpenAPI v1 y mocks de los servicios BELC (R1)
 
 Campos: Historia · Épica Habilitadores técnicos · Célula BE · Responsable Domingo Camargo · Sprint actual
