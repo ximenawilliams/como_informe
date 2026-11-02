@@ -1,0 +1,333 @@
+openapi: 3.0.3
+info:
+  title: BELC · Componentes comunes de API
+  version: 1.1.0
+  description: |
+    Piezas comunes para todos los contratos de Banca en Línea Comercial (BELC).
+    Cada contrato las referencia con $ref; no las copia.
+      Ejemplo: $ref: './belc-api-comun.yaml#/components/parameters/IdGrupoEconomico'
+    Rutas y campos en español (iguales al backlog); campos del estándar RFC 9457 en inglés.
+    Reglas completas: "Guía de diseño de APIs BELC v1" (Arquitectura).
+    Dueña: Arquitectura de Solución / DBA BELC (Ximena Williams).
+security:
+  - forgerockBearer: []
+paths: {}
+
+components:
+  securitySchemes:
+    forgerockBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Cliente con sesión. Token emitido por ForgeRock; la persona se obtiene del token, nunca del cuerpo ni de la ruta.
+    invitacion:
+      type: apiKey
+      in: header
+      name: X-Invitation-Token
+      description: Invitado antes de registrarse. Token de la invitación; el servicio lo compara con token_hash de belpc_enrollment y valida que no esté vencido. Solo en afiliacion.
+    empleadoBanco:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Empleado del banco en BackOffice (TEC-011). Se autoriza por permiso administrativo; no necesita pertenecer al grupo como cliente. Solo en backoffice.
+
+  parameters:
+    IdGrupoEconomico:
+      name: id
+      in: path
+      required: true
+      description: Grupo económico. El servicio valida que la persona del token pertenezca a él (si no, 403 GRUPO_NO_AUTORIZADO).
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+      example: 1
+    XCorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: true
+      description: UUID generado por el canal. Se devuelve en la respuesta y se escribe en la bitácora.
+      schema:
+        type: string
+        format: uuid
+      example: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+    Pagina:
+      name: pagina
+      in: query
+      required: false
+      description: Número de página, desde 0.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Tamano:
+      name: tamano
+      in: query
+      required: false
+      description: Elementos por página.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Texto:
+      name: texto
+      in: query
+      required: false
+      description: Texto de búsqueda.
+      schema:
+        type: string
+        maxLength: 100
+
+  headers:
+    XCorrelationId:
+      description: El mismo X-Correlation-Id recibido.
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Estado:
+      type: string
+      description: Estado de un registro (roles, grupos de productos, usuarios).
+      enum: [ACTIVO, INACTIVO]
+
+    Version:
+      type: integer
+      format: int32
+      minimum: 1
+      description: Versión del registro. Toda edición envía la versión que leyó; si no coincide, 409 VERSION_DESACTUALIZADA.
+
+    CuentaEnmascarada:
+      type: string
+      description: Cuenta o tarjeta enmascarada. Nunca se devuelve el número completo.
+      pattern: '^\*{4}[0-9]{4}$'
+      example: '****4821'
+
+    Paginacion:
+      type: object
+      description: Campos de toda lista paginada; la lista va en "elementos".
+      required: [pagina, tamano, totalElementos]
+      properties:
+        pagina:
+          type: integer
+          example: 0
+        tamano:
+          type: integer
+          example: 20
+        totalElementos:
+          type: integer
+          example: 57
+
+    AprobacionAceptada:
+      type: object
+      description: Respuesta de todo cambio que pasa por aprobación administrativa (ADR-004).
+      required: [idAprobacion, estado, aprobacionesRequeridas]
+      properties:
+        idAprobacion:
+          type: integer
+          format: int32
+          example: 81
+        estado:
+          type: string
+          description: Siempre PENDIENTE al crear; el modelo exige al menos una aprobación. El resultado final se consulta en el seguimiento.
+          enum: [PENDIENTE]
+          example: PENDIENTE
+        aprobacionesRequeridas:
+          type: integer
+          minimum: 1
+          example: 2
+
+    EstadoAprobacion:
+      type: string
+      description: |
+        PENDIENTE: espera aprobadores. APROBADA: aprobada, por aplicar. APLICADA: ya está en la tabla real.
+        Finales sin cambio: RECHAZADA, EXPIRADA, CANCELADA, FALLIDA (p. ej. el registro cambió de versión antes de aplicar).
+      enum: [PENDIENTE, APROBADA, APLICADA, RECHAZADA, EXPIRADA, CANCELADA, FALLIDA]
+
+    SeguimientoAprobacion:
+      type: object
+      description: Respuesta de GET /v1/grupos-economicos/{id}/aprobaciones-administrativas/{idAprobacion}.
+      required: [idAprobacion, estado, aprobacionesRequeridas, aprobacionesRecibidas]
+      properties:
+        idAprobacion:
+          type: integer
+          format: int32
+          example: 81
+        estado:
+          $ref: '#/components/schemas/EstadoAprobacion'
+        aprobacionesRequeridas:
+          type: integer
+          minimum: 1
+          example: 2
+        aprobacionesRecibidas:
+          type: integer
+          minimum: 0
+          example: 1
+        motivo:
+          type: string
+          description: Solo en RECHAZADA o FALLIDA.
+          example: El rol cambió de versión antes de aplicar el cambio.
+
+    ErrorCampo:
+      type: object
+      required: [campo, motivo]
+      properties:
+        campo:
+          type: string
+          example: nombre
+        motivo:
+          type: string
+          example: Es obligatorio
+
+    Problem:
+      type: object
+      description: Error en formato RFC 9457 (application/problem+json; reemplaza a la RFC 7807). Campos del estándar en inglés; extensiones codigo, idCorrelacion y errores.
+      required: [type, title, status, codigo, idCorrelacion]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          example: /errors/rol-duplicado
+        title:
+          type: string
+          example: Ya existe un rol con ese código en el grupo
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: El código TESORERIA ya está en uso.
+        codigo:
+          $ref: '#/components/schemas/CodigoError'
+        idCorrelacion:
+          type: string
+          format: uuid
+          example: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+        errores:
+          type: array
+          description: Solo en 400 DATOS_INVALIDOS.
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+
+    CodigoError:
+      type: string
+      description: Código de negocio. Un código nuevo se agrega aquí y en la guía antes de usarlo.
+      enum:
+        - DATOS_INVALIDOS
+        - NO_AUTENTICADO
+        - GRUPO_NO_AUTORIZADO
+        - SIN_PERMISO
+        - NO_ENCONTRADO
+        - ROL_DUPLICADO
+        - GRUPO_PRODUCTO_DUPLICADO
+        - USUARIO_YA_EN_GRUPO
+        - MAX_ADMINISTRADORES
+        - AFILIACION_ABIERTA
+        - APROBACION_PENDIENTE
+        - VERSION_DESACTUALIZADA
+        - PERMISO_FUERA_DE_PERFIL
+        - ERROR_INTERNO
+
+  responses:
+    Aceptada:
+      description: Cambio registrado como aprobación administrativa (siempre PENDIENTE). Location apunta al seguimiento.
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/XCorrelationId'
+        Location:
+          description: URL de seguimiento de la aprobación.
+          schema:
+            type: string
+          example: /v1/grupos-economicos/1/aprobaciones-administrativas/81
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AprobacionAceptada'
+    BadRequest:
+      description: Datos inválidos.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/datos-invalidos
+            title: Datos inválidos
+            status: 400
+            codigo: DATOS_INVALIDOS
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+            errores:
+              - campo: nombre
+                motivo: Es obligatorio
+    Unauthorized:
+      description: Token ausente o vencido.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/no-autenticado
+            title: Sesión no válida
+            status: 401
+            codigo: NO_AUTENTICADO
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+    Forbidden:
+      description: Sin acceso al grupo activo o sin permiso para la acción.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/sin-permiso
+            title: No tiene permiso para esta acción
+            status: 403
+            codigo: SIN_PERMISO
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+    NotFound:
+      description: No existe en el grupo activo. Nunca se indica si existe en otro grupo.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/no-encontrado
+            title: No encontrado
+            status: 404
+            codigo: NO_ENCONTRADO
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+    Conflict:
+      description: Regla de negocio violada (duplicado, máximo de administradores, versión desactualizada).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/version-desactualizada
+            title: El registro cambió mientras lo editaba
+            status: 409
+            codigo: VERSION_DESACTUALIZADA
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+    UnprocessableEntity:
+      description: Solicitud bien formada pero no permitida por el modelo.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/permiso-fuera-de-perfil
+            title: El permiso no corresponde al perfil del rol
+            status: 422
+            codigo: PERMISO_FUERA_DE_PERFIL
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
+    InternalError:
+      description: Error no controlado. Sin detalle técnico.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /errors/error-interno
+            title: Ocurrió un error
+            status: 500
+            codigo: ERROR_INTERNO
+            idCorrelacion: 3f6c2a9e-8b1d-4f0a-9c5e-2d7b1a4e6f10
