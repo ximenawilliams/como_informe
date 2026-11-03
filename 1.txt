@@ -1,1 +1,25 @@
 
+Ya están en el backlog los 5 pasos, con AWS Secrets Manager como obligatorio.
+
+**TEC-001** (Liquibase y pipeline, Karen Gonzalez) tiene el bloque nuevo **[Despliegue]**:
+1. **Orden de instalación:** DDL → datos iniciales → permisos. Los permisos van al final porque dan acceso a las vistas.
+2. **Usuario de la aplicación:**
+   - El pipeline crea `rol_app_belc` antes del script de permisos.
+   - La contraseña sale de AWS Secrets Manager en el momento del despliegue. Nunca va en el changelog, en el repositorio, en variables en texto plano ni en logs.
+   - La aplicación lee la credencial del mismo secreto, y la rotación se hace desde Secrets Manager.
+   - Si el esquema no se llama `belc`, se configura como parámetro de Liquibase, sin editar el script a mano.
+3. **Pruebas de las células:** si una prueba espera el comportamiento anterior de las vistas, se cambia la prueba, no la base.
+4. **Crear administradores:** el INSERT debe llevar `administration_type` y `role_id`. Si la base lo rechaza, es la regla de la PO, no una falla.
+5. **Versión de MySQL:** en cada ambiente se corre la batería de entrega en un esquema vacío con la versión de ese ambiente. Se acepta con 263 PASS sin error.
+
+**TEC-107** (BE + QA) recibe el punto 3 como criterio de sus pruebas QA.
+
+Los mismos pasos están también en:
+- la hoja «Despliegue (DBA)», con tres puntos nuevos: Secretos, Aceptación por versión y Pruebas propias de las células;
+- el encabezado del script de permisos, que ahora dice que el usuario se crea con Secrets Manager;
+- el LEEME;
+- «Cambios para Jira», en las filas 113 y 114.
+
+Probé el orden de instalación con el usuario creado antes del script de permisos: funciona y el usuario consulta las vistas sin error.
+
+Al revisar encontré que el backlog que te mandé antes no tenía los cambios de TEC-105, TEC-084 y TEC-112 (el permiso `PRODUCTOS_CONSULTAR` y `can_decide`): el script tomaba una base distinta a la que yo había editado. Ya están incluidos, en las filas 110 a 112 de «Cambios para Jira». Usa el ZIP nuevo, **Entrega_BD_BELC_v4_4_20261103.zip**, y descarta el anterior.
