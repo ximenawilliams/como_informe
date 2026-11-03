@@ -1,25 +1,106 @@
+Aquí va el texto de TEC-001 para pegar en Jira. Ya lo corregí también en el backlog: tenía nombres de carpeta viejos, decía 160 escenarios en vez de 164 y no mencionaba el esquema de auditoría. Agregué además el criterio 8, sobre el historial de Liquibase de BELP.
 
-Ya están en el backlog los 5 pasos, con AWS Secrets Manager como obligatorio.
+---
 
-**TEC-001** (Liquibase y pipeline, Karen Gonzalez) tiene el bloque nuevo **[Despliegue]**:
-1. **Orden de instalación:** DDL → datos iniciales → permisos. Los permisos van al final porque dan acceso a las vistas.
-2. **Usuario de la aplicación:**
-   - El pipeline crea `rol_app_belc` antes del script de permisos.
-   - La contraseña sale de AWS Secrets Manager en el momento del despliegue. Nunca va en el changelog, en el repositorio, en variables en texto plano ni en logs.
-   - La aplicación lee la credencial del mismo secreto, y la rotación se hace desde Secrets Manager.
-   - Si el esquema no se llama `belc`, se configura como parámetro de Liquibase, sin editar el script a mano.
-3. **Pruebas de las células:** si una prueba espera el comportamiento anterior de las vistas, se cambia la prueba, no la base.
-4. **Crear administradores:** el INSERT debe llevar `administration_type` y `role_id`. Si la base lo rechaza, es la regla de la PO, no una falla.
-5. **Versión de MySQL:** en cada ambiente se corre la batería de entrega en un esquema vacío con la versión de ese ambiente. Se acepta con 263 PASS sin error.
+**TEC-001 · Liquibase para los esquemas belc y auditoria en el pipeline**
+Ola 1 · Sprint 1 · Habilitadores técnicos · DevOps / BD · SRE · Karen Gonzalez
 
-**TEC-107** (BE + QA) recibe el punto 3 como criterio de sus pruebas QA.
+**1. Objetivo técnico**
+Que las bases de datos BELC v4.4 (esquema belc) y de auditoría (esquema auditoria) se instalen igual en todos los ambientes, un archivo por esquema, sin scripts manuales. El pipeline demuestra con un mensaje de éxito y un listado de objetos que quedaron completas.
 
-Los mismos pasos están también en:
-- la hoja «Despliegue (DBA)», con tres puntos nuevos: Secretos, Aceptación por versión y Pruebas propias de las células;
-- el encabezado del script de permisos, que ahora dice que el usuario se crea con Secrets Manager;
-- el LEEME;
-- «Cambios para Jira», en las filas 113 y 114.
+**2. Alcance**
+Incluye:
+- Un changeset de Liquibase por esquema:
+  - `belc_instalacion_v4_4.sql`: estructura, datos iniciales de la PO y rol `rol_app_belc` con permisos por tabla.
+  - `auditoria_instalacion_v4_4.sql`: bitácora, 28 tipos de evento y permisos de solo INSERT.
+- Verificación con `anexos/belc_verificacion_instalacion_v4_4.sql`.
+- Usuario de conexión con AWS Secrets Manager.
+- Pruebas de aceptación en laboratorio (carpeta `pruebas/`) y controles de integridad en QA.
 
-Probé el orden de instalación con el usuario creado antes del script de permisos: funciona y el usuario consulta las vistas sin error.
+No incluye:
+- El esquema belp ni su bitácora, que no cambian. BELP no se conecta al esquema de auditoría en R1.
+- Cambios posteriores al modelo: cada uno es un changeset nuevo de la célula dueña.
 
-Al revisar encontré que el backlog que te mandé antes no tenía los cambios de TEC-105, TEC-084 y TEC-112 (el permiso `PRODUCTOS_CONSULTAR` y `can_decide`): el script tomaba una base distinta a la que yo había editado. Ya están incluidos, en las filas 110 a 112 de «Cambios para Jira». Usa el ZIP nuevo, **Entrega_BD_BELC_v4_4_20261103.zip**, y descarta el anterior.
+**3. Diseño / arquitectura**
+- **Escribe:** esquemas belc y auditoria; rol `rol_app_belc` (sin contraseña, permisos por tabla); usuario de conexión de la aplicación (SRE, con AWS Secrets Manager).
+- **Archivos en la raíz del paquete:** `belc_instalacion_v4_4.sql` y `auditoria_instalacion_v4_4.sql`.
+- **Anexos:** `belc_verificacion_instalacion_v4_4.sql` (verifica y lista) y `belc_controles_integridad_v4_4.sql` (QA y producción).
+- **Pruebas:** carpeta `pruebas/`.
+- **Liquibase:** cada esquema con su propio DATABASECHANGELOG; nunca usar el de BELP.
+- **Tag de línea base:** belc-v4.4.
+
+**4. Componentes impactados:** Aurora MySQL · Liquibase
+**5. Dependencias:** —
+
+**6. Restricciones**
+- Un changelog por esquema, sin FK entre esquemas.
+- Ningún cambio al esquema belp.
+- Nunca GRANT sobre el esquema completo al usuario de la aplicación.
+- La contraseña del usuario de conexión solo vive en AWS Secrets Manager: nunca en SQL, changelog, repositorio, variables en texto plano ni logs.
+- La instalación solo corre sobre un esquema vacío.
+
+**7. Criterios de aceptación técnicos**
+
+1. **Instalación en un paso por esquema.**
+   - **Auditoría:** `auditoria_instalacion_v4_4.sql`, sobre el esquema de auditoría vacío, imprime «auditoria v4.4 · INSTALACIÓN EXITOSA … 28 tipos de evento …». Le da al rol `rol_app_belc` SELECT en `aud_event_type` y solo INSERT en `aud_event_log`. Con el usuario real, UPDATE, DELETE y SELECT sobre la bitácora fallan con 1142. Es un esquema nuevo en todos los ambientes y en R1 solo escribe BELC.
+   - **Belc:** el pipeline corre `belc_instalacion_v4_4.sql` sobre el esquema destino vacío y termina sin error. Funciona con cualquier nombre de esquema. Si el esquema no está vacío, se detiene en la primera tabla (ERROR 1050) sin pisar nada.
+
+2. **Mensaje de éxito.** La última línea de la instalación de belc imprime exactamente:
+   `BELC v4.4 · INSTALACIÓN EXITOSA en el esquema <esquema> · 41 tablas · 3 vistas · 91 FK · 55 CHECK · 67 UNIQUE · 0 triggers · catálogos PO cargados · rol rol_app_belc con 44 permisos`
+   Si falta algo, termina con ERROR 1242 y el pipeline se detiene. Esta es la query del mensaje, que también va al final de `belc_instalacion_v4_4.sql`:
+```sql
+SELECT CASE WHEN x.ok = 1 THEN CONCAT('BELC v4.4 · INSTALACIÓN EXITOSA en el esquema ', DATABASE(), ' · 41 tablas · 3 vistas · 91 FK · 55 CHECK · 67 UNIQUE · 0 triggers · catálogos PO cargados · rol rol_app_belc con 44 permisos')
+       ELSE (SELECT 'INSTALACIÓN INCOMPLETA' FROM (SELECT 1 AS n UNION ALL SELECT 2) d WHERE d.n > x.ok) END AS resultado_instalacion
+FROM (SELECT (
+      (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' AND table_name LIKE 'belpc\_%') = 41
+  AND (SELECT COUNT(*) FROM information_schema.views WHERE table_schema = DATABASE() AND table_name LIKE 'belpc\_v\_%' AND security_type = 'INVOKER') = 3
+  AND (SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND constraint_type = 'FOREIGN KEY') = 91
+  AND (SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND constraint_type = 'CHECK') = 55
+  AND (SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND constraint_type = 'UNIQUE') = 67
+  AND (SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = DATABASE()) = 0
+  AND (SELECT COUNT(*) FROM belpc_profile_permission) = 123
+  AND (SELECT COUNT(DISTINCT table_name) FROM information_schema.table_privileges WHERE grantee = '''rol_app_belc''@''%''' AND table_schema = DATABASE()) = 44
+) AS ok) x;
+```
+
+3. **Listado de objetos.** `anexos/belc_verificacion_instalacion_v4_4.sql` muestra 17 controles (esperado contra obtenido, todos en OK) y el listado de objetos: 41 tablas, 3 vistas y 44 permisos del rol. Esta es la query del listado:
+```sql
+SELECT 'TABLA' AS tipo, table_name AS objeto, table_comment AS descripcion FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'
+UNION ALL SELECT 'VISTA', table_name, CONCAT('SQL SECURITY ', security_type) FROM information_schema.views WHERE table_schema = DATABASE()
+UNION ALL SELECT 'PERMISO DEL ROL', table_name, GROUP_CONCAT(privilege_type ORDER BY privilege_type SEPARATOR ', ') FROM information_schema.table_privileges
+          WHERE grantee = '''rol_app_belc''@''%''' AND table_schema = DATABASE() GROUP BY table_name
+ORDER BY 1, 2;
+```
+   En cada ambiente se adjunta a esta tarea la impresión, `pruebas/TEC-001_verificacion_instalacion_BELC_v4_4.pdf`.
+
+4. **Usuario de conexión con AWS Secrets Manager (obligatorio).** SRE lo crea con la contraseña del secreto y ejecuta:
+```sql
+CREATE USER '<usuario_app>'@'%' IDENTIFIED BY '<valor de AWS Secrets Manager>';
+GRANT rol_app_belc TO '<usuario_app>'@'%';
+SET DEFAULT ROLE rol_app_belc TO '<usuario_app>'@'%';
+```
+   Conectado con ese usuario, lee los catálogos y las 3 vistas. Modificar o borrar evidencia, catálogos o estructura falla con 1142.
+
+5. **Aceptación por versión.** En cada ambiente, con la versión del motor de ese ambiente:
+   - `prueba_entrega_belc_v4_4.sql`, sobre un esquema de laboratorio vacío: 263 PASS sin error.
+   - Sobre la estructura con los datos iniciales:
+     - `prueba_datos_iniciales_v4_4.sql`: 14 PASS.
+     - `escenarios_po_belc_v4_4.sql`: 164 PASS.
+     - `prueba_controles_integridad_v4_4.sql`: 20 de 20 DETECTA.
+     - `prueba_validar_flujo_completo_v4_4.sql`: 7 de 7.
+
+   En cada changeset posterior el pipeline vuelve a correrlas y se detiene si alguna falla.
+
+6. **Controles de integridad.** QA corre `anexos/belc_controles_integridad_v4_4.sql` después de cada prueba de integración y debe dar 0. En producción se programa a diario, con alerta para severidad ALTA.
+
+7. **Pruebas propias de las células.** Estos comportamientos son correctos:
+   - un rol sin `PRODUCTOS_CONSULTAR` no ve productos;
+   - con el flujo en BORRADOR, `can_decide` da 0;
+   - con el grupo o el permiso del catálogo inactivo, nadie es aprobador;
+   - un INSERT en `belpc_group_admin` sin `administration_type` o `role_id` se rechaza (regla de la PO, BELCMW-4).
+
+   Si una prueba espera lo contrario, se ajusta la prueba, no la base.
+
+8. **Liquibase.** El changelog de cada esquema (belc y auditoria) registra su historial en el DATABASECHANGELOG de ese mismo esquema. El DATABASECHANGELOG de BELP no recibe ninguna fila.
+
+**Adjunto:** `TEC-001_verificacion_instalacion_BELC_v4_4.pdf`
