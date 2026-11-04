@@ -1,3 +1,9 @@
+De acuerdo. Puedes acompañarlo en BELCMW-57 con este comentario:
+Se adjuntan los diagramas de secuencia de los procesos principales de BELC R1 y la matriz de cobertura con historias, variantes y pendientes. Se incluye la transición de operador BELC a BELP conservando el mismo UUID ForgeRock. Documento entregado para revisión del equipo técnico y la PO.
+
+
+
+
 Aquí va el texto de TEC-001 para pegar en Jira. Ya lo corregí también en el backlog: tenía nombres de carpeta viejos, decía 160 escenarios en vez de 164 y no mencionaba el esquema de auditoría. Agregué además el criterio 8, sobre el historial de Liquibase de BELP.
 
 ---
