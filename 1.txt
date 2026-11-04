@@ -1,3 +1,41 @@
+Sí, D6 se resuelve así. En las tres plataformas, y en las bancas empresariales de la región, «gestión de token» es la administración del segundo factor (token o soft token) de los usuarios de la empresa. No es el token de la invitación.
+
+Qué hace cada sistema
+
+Goldleaf (asumo que te refieres al de Jack Henry, hoy JHA Treasury Management): su función de token seguro se coordina con software de terceros de Symantec, y la gestiona el administrador. En los bancos que lo usan, los administradores principales asignan los tokens de seguridad a los usuarios, sin tener que llamar al banco. 
+banno
+midlandsb
+Temenos (Infinity / Digital): trabaja con tokens de HID, y su ciclo documentado incluye registro, login y transacciones con código seguro, token bloqueado y sincronización del token. 
+hidglobal
+Technisys: no encontré documentación pública sobre este punto. Las bancas empresariales de la región hacen lo mismo:
+En Panamá, la guía empresarial de Unibank tiene un menú de administración de Unitoken para asignar el token a los usuarios creados por el administrador. 
+unibank
+En BBVA Empresas, el administrador asigna el dispositivo: selecciona el usuario y el número de teléfono, asigna y valida los cambios. 
+bbva
+Bloqueo: el patrón es el de TowneBank. Tras 3 intentos el soft token se bloquea y el administrador lo desactiva, para que el usuario vuelva a configurarlo en su siguiente ingreso.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 De acuerdo. Puedes acompañarlo en BELCMW-57 con este comentario:
 Se adjuntan los diagramas de secuencia de los procesos principales de BELC R1 y la matriz de cobertura con historias, variantes y pendientes. Se incluye la transición de operador BELC a BELP conservando el mismo UUID ForgeRock. Documento entregado para revisión del equipo técnico y la PO.
 
